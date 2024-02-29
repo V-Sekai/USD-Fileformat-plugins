@@ -1,0 +1,85 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r scripts/requirements.txt
+        shell: bash
+
+      - name: Clone OpenUSD repository
+        run: |
+          git clone https://github.com/PixarAnimationStudios/OpenUSD.git
+          cd OpenUSD
+          git fetch origin tag v24.03
+          git checkout v24.03
+        shell: bash
+
+      - name: Setup USD Dependencies
+        run: |
+          if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
+            sudo apt-get update
+            sudo apt install libgl1-mesa-dev mesa-common-dev libopenexr-dev cmake
+          elif [ "${{ matrix.os }}" == "macos-latest" ]; then
+            brew install openexr cmake
+          elif [ "${{ matrix.os }}" == "windows-latest" ]; then
+            choco install cmake
+          fi
+        shell: bash
+
+      - name: Build and Install USD
+        run: |
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+            python ./OpenUSD/build_scripts/build_usd.py ./usd-install --openimageio --build-variant release --no-examples --generator "Visual Studio 17 2022" --no-tutorials
+          else
+            python ./OpenUSD/build_scripts/build_usd.py ./usd-install --openimageio --build-variant release --no-examples --no-tutorials
+          fi
+        shell: bash
+
+      - name: Configure and Build USD File Format Plugins
+        run: |
+          export PATH="./usd-install/bin:./usd-install/lib:${PATH}"
+          export PYTHONPATH="./usd-install/lib/python:${PYTHONPATH}"
+          cmake -S . -B build -DBOOST_ROOT="./usd-install" -DCMAKE_INSTALL_PREFIX="./usd-install" -DUSD_FILEFORMATS_ENABLE_FBX=OFF -Dpxr_ROOT="./usd-install" -DUSD_FILEFORMATS_BUILD_TESTS=OFF -DUSD_FILEFORMATS_ENABLE_CXX11_ABI=ON
+          cmake --build   build --config release
+        env:
+          USD_INSTALL_PATH: ./usd-install
+          USD_INSTALL_PATH_BIN: ./usd-install/bin
+          USD_INSTALL_PATH_LIB: ./usd-install/lib
+          USD_INSTALL_PYTHON_PATH: ./usd-install/lib/python
+        shell: bash
+
+      - name: Install USD File Format Plugins
+        run: |
+          cmake --install build --config release
+        shell: bash
+
+      - name: Remove usd-install/build folder
+        run: rm -rf ./usd-install/build
+        shell: bash
+        
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: usd-install-${{ matrix.os }}
+          path: ./usd-install
