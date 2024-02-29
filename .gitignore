@@ -51,6 +51,9 @@ bin
 
 # Generated testing
 Testing
+test/__pycache__
+test/assets/*/*.usd
+test/assets/*/*/*.usd
 test/output
 test/__pycache__/
 *_usdchecked.usd
