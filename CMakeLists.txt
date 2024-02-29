@@ -1,6 +1,17 @@
 cmake_minimum_required(VERSION 3.16.0)
 project(usdFileFormats)
 
+set(BOOST_ROOT CACHE PATH "Path to Boost root directory")
+
+find_package(Boost REQUIRED)
+
+include_directories(${Boost_INCLUDE_DIRS})
+
+find_package(PythonInterp REQUIRED)
+find_package(PythonLibs REQUIRED)
+
+include_directories(${PYTHON_INCLUDE_DIRS})
+
 file(READ "version" VERSION)
 string(REGEX MATCH "([0-9]*).([0-9]*).([0-9]*)" _ ${VERSION})
 set(CPACK_PACKAGE_VERSION_MAJOR ${CMAKE_MATCH_1})
